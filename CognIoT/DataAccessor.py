@@ -1,6 +1,9 @@
 """
 Contains the required AWS Connection Utilities
 
+#TODO: If there is no db connection, will capture the data in local file ready for transmit
+    This will require some space management so that we don't overfill the card.
+    If it was really clever, it would create a separate thread to handle writing of the data
 """
 
 import boto3
@@ -34,8 +37,10 @@ def WriteValues(db, tag, tstamp, device, sensor, acroynm, desc):
     Always using the same sensor
     returns nothing
     """
+    
+    #TODO: Needs to return a success / failure
 
-    #return    # added to bypass the database write
+    #TODO: Future upgrade is to capture the data if offline and send it when it reconnects.
     
     print ("device: %s, Timestamp: %s, Sensor: %s, Acroynm: %s, Desc: %s, Tag: %s" % (device, tstamp, sensor, acroynm, desc, tag))
     try:

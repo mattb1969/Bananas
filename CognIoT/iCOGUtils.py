@@ -11,25 +11,25 @@ SPI = "SPI"
 SERIAL = "Serial"
 
 
-def GetDevices():
+def GetSensors():
     """
     The real routines reads the EERPROM and returns various values from it
     This just returns a positive response and some values as a dictionary
     
-    bustype, busnumber, deviceaddress, UUID, device, manufacturer
+    UUID, bustype, busnumber, sensoraddress, sensor, manufacturer
     """
     
     bustype = I2C
     busnumber = 1
-    deviceaddress = "Ox52"
-    UUID = 0x12345678
-    device = 12
+    sensoraddress = "Ox52"
+    uuid= 0x12345678
+    sensor = 12
     manufacturer = 1
     status = True
     
-    return status, [bustype, busnumber, deviceaddress, UUID, device, manufacturer]
+    return status, [uuid, bustype, busnumber, sensoraddress, sensor, manufacturer]
 
-GetEEPROMData(bustype, busnumber, deviceaddress,page):
+def GetEEPROMData(uuid, bustype, busnumber, sensoraddress,page):
     """
     The real routine reads a page of data from the EEPROM
     This just returns some values as a dictionary
@@ -41,7 +41,7 @@ GetEEPROMData(bustype, busnumber, deviceaddress,page):
     status = True
     return status
     
-SetEEPROMData(bustype, busnumber, deviceaddress, page, data):
+def SetEEPROMData(uuid, bustype, busnumber, sensoraddress, page, data):
     """
     The real routine writes a page of data from the EEPROM
     This just returns some values as a dictionary
@@ -73,3 +73,10 @@ def SetChecksum():
     
     return True
 
+def GetSensorCount():
+    """
+    the real routine determines how manyu sensors are connected somehow
+    This just returns a status and fixed value
+    """
+    
+    return True, 1

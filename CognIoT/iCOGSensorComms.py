@@ -5,7 +5,7 @@ This is a stub program for the purposes of testing the main program
 
 """
 
-def SetupHardware(bustype, busnumber, deviceaddress, UUID):
+def SetupHardware(uuid, bustype, busnumber, sensoraddress):
     """
     
     The real routine sets up the comms for the sensor attached to the PI
@@ -13,9 +13,11 @@ def SetupHardware(bustype, busnumber, deviceaddress, UUID):
     
     """
     
+    #TODO: needs top return an istance of iteself
+    
     return True
 
-def ReadData(bustype, busnumber, deviceaddress, UUID):
+def ReadData(uuid, bustype, busnumber, deviceaddress):
     """
     
     The real routine sets up the comms for the sensor attached to the PI
