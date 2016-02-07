@@ -17,6 +17,15 @@ Command Line Options
 
 """
 
+"""
+Progress So far
+- Currently trying to figure out how to get the data out of the datafile and into a list so I can parse it
+  to find the data I want. 
+  Once I've got that, I can set the rest of the variables for the sensor connected.
+- Absolutely no testing completed at all
+"""
+
+
 from CognIot import DataAccessor
 from CognIot import iCOGUtils
 from CognIot import iCOGSensorComms
@@ -41,18 +50,36 @@ class iCOG():
     def __init__(self):
         
         return
+        
+    def SetAcroymnData(self):
+        """
+        Sets the additional information about the sensor, based on the data file
+        Loads the datafile into a 
+            - Sensor Acroynm
+            - Sensor Description
+            - Read Frequency
+        """
+        #TODO: Need to add lots of error checking around this
+        self.table = ""
+        with open('CognIoT/datafile.txt', mode='rt') as f:
+            # Read a line of data in and strip any unwanted \n type characters
+            data = f.readline.strip()
+            # split the data by a comma into a list.
+            row_data = data.split(",")
+            #TODO: May want to consider being cleverer about this and make an outer list and an inner list
+            self.table = self.table + row_data
+        f.close()
+        
+        #Now loop through the data string and extract the acroynm and description
+        
+        #TODO: loop through and find the data
+        
 
     def GetSensors(self):
         """
         Interface with the EEPROM and get the sensor details
         Returns
-            uuid= 0x12345678
-            bustype = I2C
-            busnumber = 1
-            sensoraddress = "Ox52"
-            sensor = 12
-            manufacturer = 1
-            status = True
+            uuid, bustype, busnumber, sensoraddress, sensor, manufacturer, status
         """
         status, reply = iCOGUtils.GetSensors()
         if status:
@@ -66,6 +93,7 @@ class iCOG():
             #TODO: Implement something here
             print ("unable to read EEPROM")
             sys.exit()
+        
         return   
         
     def SetupSensor(self):
@@ -74,10 +102,10 @@ class iCOG():
         
         uuid, bustype, busnumber, sensoraddress
         """
-        reply = iCOGSensorComms.SetupHardware(self.uuid, self.bustype, self.busnumber, self.sensoraddress)
+        self.setuphardware = iCOGSensorComms.SetupHardware(self.uuid, self.bustype, self.busnumber, self.sensoraddress)
 
         #TODO: verify the response to check the sensor has initialised correctly.
-        return reply
+        return self.setuphardware
         
 
 
@@ -137,7 +165,7 @@ def SetGlobals():
     #TODO: Needs to use the set parameters values also
     return
 
-def GetSensors():
+def GetSensors_OLD():
     """
     Read the Sensor data from the EEPROM and return the values
     GetSensors returns:
