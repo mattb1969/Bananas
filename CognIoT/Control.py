@@ -23,17 +23,21 @@ Progress So far
   to find the data I want. 
   Once I've got that, I can set the rest of the variables for the sensor connected.
 - Absolutely no testing completed at all
+
+- trying to get the test module working so I can have some validation on the code written.
 """
 
 
-from CognIot import DataAccessor
-from CognIot import iCOGUtils
-from CognIot import iCOGSensorComms
+from . import DataAccessor
+from . import iCOGUtils
+from . import iCOGSensorComms
 
 from datetime import datetime
 
 import time
 import argparse
+
+
 
 
 ################################################################################
@@ -73,7 +77,7 @@ class iCOG():
         #Now loop through the data string and extract the acroynm and description
         
         #TODO: loop through and find the data
-        
+        return self.table
 
     def GetSensors(self):
         """
@@ -89,7 +93,7 @@ class iCOG():
             self.sensoraddress = reply[3]
             self.sensor = reply[4]
             self.manufacturer = reply[5]
-        else
+        else:
             #TODO: Implement something here
             print ("unable to read EEPROM")
             sys.exit()
@@ -107,8 +111,6 @@ class iCOG():
         #TODO: verify the response to check the sensor has initialised correctly.
         return self.setuphardware
         
-
-
 def GetSerialNumber():
     """
     Get the System Serial number to be used as the Device ID
@@ -146,12 +148,16 @@ def SetGlobals():
     
     """
     
-    global g_sensor_acroynm = ["PirFlx"]
-    global g_sensor_description = ["RFID Tag Reader"]
+    global g_sensor_acroynm
+    g_sensor_acroynm = ["PirFlx"]
+    global g_sensor_description
+    g_sensor_description = ["RFID Tag Reader"]
     # read frequency is stored in seconds
-    global g_read_frequency = [1]
+    global g_read_frequency
+    g_read_frequency = [1]
 
-    global g_qty_sensors = iCOGUtils.GetSensorCount()
+    global g_qty_sensors
+    g_qty_sensors = iCOGUtils.GetSensorCount()
     #TODO: Add check that if no sensors connected, no further action
 
 
@@ -186,9 +192,9 @@ def GetSensors_OLD():
         # postive response means successful read
         # set the global data associated to the sensor read
         return sensors
-    else
+    else:
         # failed
-        
+        time.sleep(0.01)
     return        
     
 
@@ -244,7 +250,8 @@ def Start():
         #TODO:  parameters required: uuid, bustype, busnumber, sensoraddress
         
         #BUG: This line is wrong, as it needs to go via the class!!!
-        sensor(sensor_count) = iCOG.SetupSensor( add some parameters in here)
+        #sensor(sensor_count) = iCOG.SetupSensor( add some parameters in here)
+        
         sensor_count = sensor_count + 1
 
     # For each sensor, read the values and write them to the AWS database
@@ -254,7 +261,9 @@ def Start():
         for one in sensor:
             #TODO: Set this within a timed loop so it doesn't read data continually for most sensors
             #       will need a default value to use
-            data_read = one.ReadData( add some parameters in here)
+            
+            #data_read = one.ReadData( add some parameters in here)
+            
             # BUG: This line doesn't contain the correct variables
             if tag_num[0]:
                 DataAccessor.WriteValues(dbconn, tag_num[1], GenerateTimeStamp(), device_id, "0001", sensor_acroynm, sensor_description)
@@ -375,7 +384,7 @@ def main():
         DisplayParameters()  #TODO: Not started
     elif args.SetPara:
         SetParameters()      #TODO: Not started
-    else
+    else:
         Start()
 
     
