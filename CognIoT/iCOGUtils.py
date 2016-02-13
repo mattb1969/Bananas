@@ -11,21 +11,31 @@ SPI = "SPI"
 SERIAL = "Serial"
 
 
-def GetSensors():
+def GetSensor(sensor_id):
     """
     The real routines reads the EERPROM and returns various values from it
-    This just returns a positive response and some values as a dictionary
+    This just returns a positive response and some values as a dictionary if it is the first sensor
+    else it returns False and an empty set
     
     UUID, bustype, busnumber, sensoraddress, sensor, manufacturer
     """
     
-    bustype = I2C
-    busnumber = 1
-    sensoraddress = "Ox52"
-    uuid= 0x12345678
-    sensor = 12
-    manufacturer = 1
-    status = True
+    if sensor_id = 0:
+        bustype = I2C
+        busnumber = 1
+        sensoraddress = "Ox52"
+        uuid= 0x12345678
+        sensor = 12
+        manufacturer = 1
+        status = True
+    else:
+        bustype = ""
+        busnumber = 0
+        sensoraddress = ""
+        uuid= 0
+        sensor = 0
+        manufacturer = 0
+        status= False
     
     return status, [uuid, bustype, busnumber, sensoraddress, sensor, manufacturer]
 

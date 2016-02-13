@@ -19,25 +19,26 @@ Command Line Options
 
 """
 Progress So far
-- Currently trying to figure out how to get the data out of the datafile and into a list so I can parse it
-  to find the data I want. 
-  Once I've got that, I can set the rest of the variables for the sensor connected.
-- Absolutely no testing completed at all
 
-- trying to get the test module working so I can have some validation on the code written.
+
 """
 
 
-from . import DataAccessor
-from . import iCOGUtils
-from . import iCOGSensorComms
+#from . import DataAccessor
+#from . import iCOGUtils
+#from . import iCOGSensorComms
+
+import DataAccessor
+import iCOGUtils
+import iCOGSensorComms
 
 from datetime import datetime
 
 import time
 import argparse
 
-
+DATAFILE_NAME = "datafile.txt"
+DATAFILE_LOCATION = "CognIoT"
 
 
 ################################################################################
@@ -49,43 +50,51 @@ class iCOG():
     """
     This class needs to hold everything associated with the sensor
     
+    self.datafile contains the information read from the external file.
     """
 
     def __init__(self):
-        
+        #TODO: Read the EEPROM and process the data - could this be set globals function?
+        #       Check for a tuple first - if UUID matches, use the data
+        #       Create a iCOG class holding the sensor data
+        #       turple the data for future use
+        """
+        INitialises the values and checkes if they have been previously saved as a tuple
+        """
+        #TODO: Not yet implemented
+        #readfrequency is the time between reading of values
+        self.readfrequency = 30
         return
+    
+    def ReturnUUID(self):
+        return self.uuid
+    
+    def ReturnBusType(self):
+        return self.bustype
+    
+    def ReturnBusNumber(self):
+        return self.busnumber
         
-    def SetAcroymnData(self):
-        """
-        Sets the additional information about the sensor, based on the data file
-        Loads the datafile into a 
-            - Sensor Acroynm
-            - Sensor Description
-            - Read Frequency
-        """
-        #TODO: Need to add lots of error checking around this
-        self.table = ""
-        with open('CognIoT/datafile.txt', mode='rt') as f:
-            # Read a line of data in and strip any unwanted \n type characters
-            data = f.readline.strip()
-            # split the data by a comma into a list.
-            row_data = data.split(",")
-            #TODO: May want to consider being cleverer about this and make an outer list and an inner list
-            self.table = self.table + row_data
-        f.close()
+    def ReturnSensorAddress(self):
+        return self.sensoraddress
         
-        #Now loop through the data string and extract the acroynm and description
-        
-        #TODO: loop through and find the data
-        return self.table
+    def ReturnSensor(self):
+        return self.sensor
+    
+    def ReturnManufacturer(self):
+        return self.manufacturer
+    
+    def ReturnReadFrequency(self):
+        return self.readfrequency
 
-    def GetSensors(self):
+    def GetSensor(self, sensor_id):
         """
         Interface with the EEPROM and get the sensor details
         Returns
             uuid, bustype, busnumber, sensoraddress, sensor, manufacturer, status
+        How will this work for multiple sensors?
         """
-        status, reply = iCOGUtils.GetSensors()
+        status, reply = iCOGUtils.GetSensor(sensor_id)
         if status:
             self.uuid = reply[0]
             self.bustype = reply[1]
@@ -98,19 +107,62 @@ class iCOG():
             print ("unable to read EEPROM")
             sys.exit()
         
-        return   
+        return 
         
+    def SetAcroymnData(self):
+        """
+        This must be run after GetSensors
+        Sets the additional information about the sensor, based on the data file
+        Loads the datafile into a 
+            - Sensor Acroynm (self.sensoracroynm)
+            - Sensor Description (seslf.sensordescription)
+            - Read Frequency (self.readfrequency)
+        
+        #TODO: This should only be run if the customer hasn't set values first.
+        """
+        #TODO: Validate the error checking around this
+        self.datafile = []
+        try:
+            data = open(DATAFILE_LOCATION + '/' + DATAFILE_NAME, mode='rt')
+            lines = data.readlines()
+            data.close()
+        except:
+            print("Failed to Open datafile, please contact support")
+            sys.exit()
+            
+        for f in lines:
+            # Read a line of data in and strip any unwanted \n type characters
+            dataline = f.strip()
+            # split the data by a comma into a list.
+            row_data = dataline.split(",")
+            self.datafile.append(row_data)
+        
+        #Now loop through the data string and extract the acroynm and description
+        # Uses the self.sensor & self.manufacturer
+        for element in self.datafile:
+            if element[3] == self.sensor and element[4] == self.manufacturer:
+                self.sensoracroynm = element[0]
+                self.sensordescription = element[1]
+
+        #TODO: Add something if it is not found!
+        
+        return
+
     def SetupSensor(self):
         """
         Calls the hardware routine to initiate comms.
         
         uuid, bustype, busnumber, sensoraddress
         """
-        self.setuphardware = iCOGSensorComms.SetupHardware(self.uuid, self.bustype, self.busnumber, self.sensoraddress)
-
-        #TODO: verify the response to check the sensor has initialised correctly.
+        try:
+            self.setuphardware = iCOGSensorComms.SetupHardware(self.uuid, self.bustype, self.busnumber, self.sensoraddress)
+        except:
+            print("Unable to set up comms")
+            sys.exit()
+            
         return self.setuphardware
-        
+       
+                
 def GetSerialNumber():
     """
     Get the System Serial number to be used as the Device ID
@@ -137,66 +189,7 @@ def GenerateTimeStamp():
     #print ('Timestamp: %s' % now[:23]) #Debug
     return now[:23]
 
-def SetGlobals():
-    """
-    Set all the global variables being used by the project.
-    Can be passed any number of variables and needs to assign accordingly
-    
-    TODO: Have these pickled after they have been updated and loaded on start
-    
-    All global variables are lists, entry 0 being the first sensor connected to the Pi.
-    
-    """
-    
-    global g_sensor_acroynm
-    g_sensor_acroynm = ["PirFlx"]
-    global g_sensor_description
-    g_sensor_description = ["RFID Tag Reader"]
-    # read frequency is stored in seconds
-    global g_read_frequency
-    g_read_frequency = [1]
 
-    global g_qty_sensors
-    g_qty_sensors = iCOGUtils.GetSensorCount()
-    #TODO: Add check that if no sensors connected, no further action
-
-
-        #TODO: Read the EEPROM and process the data - could this be set globals function?
-        #       Check for a tuple first - if UUID matches, use the data
-        #       Create a iCOG class holding the sensor data
-        #       turple the data for future use
-    
-    #If called from SetParamters, needs to use the new values given
-
-    #TODO: Needs to use the set parameters values also
-    return
-
-def GetSensors_OLD():
-    """
-    Read the Sensor data from the EEPROM and return the values
-    GetSensors returns:
-    - UUID
-    - bustype
-    - busnumber
-    - sensor address
-    - sensor type
-    - sensor manufacturer
-    
-    
-    """
-    
-    # read the status and sensor data from the iCOGUtils function
-    answer, sensors = iCOGUtils.GetSensors()
-
-    if answer:
-        # postive response means successful read
-        # set the global data associated to the sensor read
-        return sensors
-    else:
-        # failed
-        time.sleep(0.01)
-    return        
-    
 
 ################################################################################
 # 
@@ -242,25 +235,53 @@ def Start():
     # setup the connection to the AWS database
     dbconn = DataAccessor.DynamodbConnection()
 
+    # Find out how many sensors are connected
+    status, sensor_count = iCOGUtils.GetSensorCount()
+    if status == False:
+        print("No sensors connected to the Rapsberry Pi")
+        sys.exit()
 
-    # for each sensor connected, initialise communications
+    # for each sensor connected, initialise communications     
     sensor_count = 0
-    while sensor_count < g_qty_sensors:
-        #Setup the sensors for each class instance
-        #TODO:  parameters required: uuid, bustype, busnumber, sensoraddress
+    qty_sensors = iCOGUtils.GetSensorCount()
+    if qty_sensors < 1:
+        print("No sensors detected")
+        sys.exit()
         
-        #BUG: This line is wrong, as it needs to go via the class!!!
-        #sensor(sensor_count) = iCOG.SetupSensor( add some parameters in here)
+    while sensor_count < qty_Sensors:
+        #Setup the sensors for each class instance
+        
+        # for the returned sensor, set all the data
+        sensor(sensor_count) = iCOG.GetSensor(sensor_count)
+        sensor(sensor_count).SetAcroymnData()
+        sensor(sensor_count).SetupSensor()
         
         sensor_count = sensor_count + 1
 
     # For each sensor, read the values and write them to the AWS database
     # needs to use the read frequency to limit the number of reads.
+    
+    """
+    This next bit would probably benefit from being in threads, using threading
+    
+    Needs a new class for threading, in the class
+        __init__
+            - pass in the values it needs
+        run
+            - check timer
+            - read the value
+            - post it to AWS
+        
+    Then in the main bit, start the threads, with each thread being started from within a loop.
+    
+    
+    """
+    starttime = time.time()
     while True:
         # Read the data
         for one in sensor:
             #TODO: Set this within a timed loop so it doesn't read data continually for most sensors
-            #       will need a default value to use
+
             
             #data_read = one.ReadData( add some parameters in here)
             

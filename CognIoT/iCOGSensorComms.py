@@ -13,7 +13,7 @@ def SetupHardware(uuid, bustype, busnumber, sensoraddress):
     
     """
     
-    #TODO: needs top return an istance of iteself
+    #TODO: needs to return an istance of iteself
     
     return True
 
