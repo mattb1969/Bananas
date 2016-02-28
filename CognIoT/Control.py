@@ -19,7 +19,8 @@ Command Line Options
 
 """
 Progress So far
-
+Written the first cut for the capturing of readings, ready for some testing
+- ideally need to write some unit tests to do all this stuff, rather than rely on manual testing.
 
 """
 
@@ -31,6 +32,7 @@ Progress So far
 import DataAccessor
 import iCOGUtils
 import iCOGSensorComms
+import threading
 
 from datetime import datetime
 
@@ -59,7 +61,7 @@ class iCOG():
         #       Create a iCOG class holding the sensor data
         #       turple the data for future use
         """
-        INitialises the values and checkes if they have been previously saved as a tuple
+        Initialises the values and checkes if they have been previously saved as a tuple
         """
         #TODO: Not yet implemented
         #readfrequency is the time between reading of values
@@ -90,9 +92,9 @@ class iCOG():
     def GetSensor(self, sensor_id):
         """
         Interface with the EEPROM and get the sensor details
-        Returns
+        Sets
             uuid, bustype, busnumber, sensoraddress, sensor, manufacturer, status
-        How will this work for multiple sensors?
+        for each sensor as a unique class object
         """
         status, reply = iCOGUtils.GetSensor(sensor_id)
         if status:
@@ -161,7 +163,56 @@ class iCOG():
             sys.exit()
             
         return self.setuphardware
-       
+
+################################################################################
+#
+# Threading Class to manage and control the reading threads.
+#
+################################################################################
+class ReadingThread(threading.Thread):
+    """
+    To perform the operations for the reading of the sensors within threads.
+    
+        Needs a new class for threading, in the class
+        __init__
+            - pass in the values it needs
+        run
+            - check timer
+            - read the value
+            - post it to AWS
+    """
+    def __init__(self, sensor):
+        self.sensor = sensor
+        return
+    
+    def run(self):
+        
+        starttime = time.time()
+        # If exitFlag is True, time to stop!
+        while exitFlag == False:
+            #Is it time to read the sensor?
+            if (starttime - time.time()) > self.sensor.readfrequency:
+                # Read the data
+                info = self.sensor.ReadData( add some parameters in here)
+                
+                #Write the data from the sensor to the database
+                DataAccessor.WriteValues(dbconn, info, GenerateTimeStamp(), self.sensor.uuid, self.sensor.sensor, self.sensor.sensor_acroynm, self.sensor.sensor_description)
+                
+                # Reset the timer
+                starttime = time.time()
+
+        return
+
+
+
+
+
+################################################################################
+#
+# Main section
+#
+################################################################################
+
                 
 def GetSerialNumber():
     """
@@ -248,50 +299,43 @@ def Start():
         print("No sensors detected")
         sys.exit()
         
-    while sensor_count < qty_Sensors:
+    while sensor_count < qty_sensors:
         #Setup the sensors for each class instance
         
         # for the returned sensor, set all the data
-        sensor(sensor_count) = iCOG.GetSensor(sensor_count)
-        sensor(sensor_count).SetAcroymnData()
-        sensor(sensor_count).SetupSensor()
+        sensor[sensor_count] = iCOG.GetSensor(sensor_count)
+        sensor[sensor_count].SetAcroymnData()
+        sensor[sensor_count].SetupSensor()
         
         sensor_count = sensor_count + 1
 
     # For each sensor, read the values and write them to the AWS database
     # needs to use the read frequency to limit the number of reads.
     
-    """
-    This next bit would probably benefit from being in threads, using threading
+   threadID = 1
+
+    # Create the new threads, using the run function within ReadingThread
+    for tsensor in sensor:
+        # Trying to pass in the individual sensor into the thread, no idea if it will work!!
+        thread = ReadingThread(threadID,tsensor)
+        thread.start()
+        threads.append(thread)
+        threadID = threadID + 1
+        print("Added Thread %s as ID: %n", % (tsensor, threadID))       #Added for debug purposes
+
+    # Wait for the user to exit via the keyboard.
+    key = input("\nPress Any Key to Exit\n")
+    if Not(key ==""):
+        exitFlag = True
     
-    Needs a new class for threading, in the class
-        __init__
-            - pass in the values it needs
-        run
-            - check timer
-            - read the value
-            - post it to AWS
+    # Wait for the threads to complete
+    for t in threads:
+        print("Waiting for the threads to complete")        #Added for Debug purposes
+        t.join()
         
-    Then in the main bit, start the threads, with each thread being started from within a loop.
+    print("Exiting Main Thread")        #added for debug purposes
     
     
-    """
-    starttime = time.time()
-    while True:
-        # Read the data
-        for one in sensor:
-            #TODO: Set this within a timed loop so it doesn't read data continually for most sensors
-
-            
-            #data_read = one.ReadData( add some parameters in here)
-            
-            # BUG: This line doesn't contain the correct variables
-            if tag_num[0]:
-                DataAccessor.WriteValues(dbconn, tag_num[1], GenerateTimeStamp(), device_id, "0001", sensor_acroynm, sensor_description)
-
-        #TODO: Consider a method of exiting the loop without using CTRL-C
-
-        
     return
 
 def Reset():

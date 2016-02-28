@@ -31,9 +31,9 @@ def DynamodbConnection():
     return db
 
     
-def WriteValues(db, tag, tstamp, device, sensor, acroynm, desc):
+def WriteValues(db, data, tstamp, device, sensor, acroynm, desc):
     """
-    Update the SensorValues table with the given tag and timestamp
+    Update the SensorValues table with the given data and timestamp
     Always using the same sensor
     returns nothing
     """
@@ -42,7 +42,7 @@ def WriteValues(db, tag, tstamp, device, sensor, acroynm, desc):
 
     #TODO: Future upgrade is to capture the data if offline and send it when it reconnects.
     
-    print ("device: %s, Timestamp: %s, Sensor: %s, Acroynm: %s, Desc: %s, Tag: %s" % (device, tstamp, sensor, acroynm, desc, tag))
+    print ("device: %s, Timestamp: %s, Sensor: %s, Acroynm: %s, Desc: %s, Tag: %s" % (device, tstamp, sensor, acroynm, desc, data))
     try:
         ans = db.put_item(
             TableName='SensorValues',
@@ -54,7 +54,7 @@ def WriteValues(db, tag, tstamp, device, sensor, acroynm, desc):
                 'SensorDescription' : { 'S': str(desc)},
                 'MVData': { 'M' : {
                     'type': { 'S' : '1'},
-                    'value': { 'S' : str(tag)}
+                    'value': { 'S' : str(data)}
                     }},
                 'Viewed': { 'BOOL' : False},
                 },
