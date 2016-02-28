@@ -20,7 +20,7 @@ def GetSensor(sensor_id):
     UUID, bustype, busnumber, sensoraddress, sensor, manufacturer
     """
     
-    if sensor_id = 0:
+    if sensor_id == 0:
         bustype = I2C
         busnumber = 1
         sensoraddress = "Ox52"

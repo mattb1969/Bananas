@@ -43,6 +43,8 @@ def WriteValues(db, data, tstamp, device, sensor, acroynm, desc):
     #TODO: Future upgrade is to capture the data if offline and send it when it reconnects.
     
     print ("device: %s, Timestamp: %s, Sensor: %s, Acroynm: %s, Desc: %s, Tag: %s" % (device, tstamp, sensor, acroynm, desc, data))
+    
+    return
     try:
         ans = db.put_item(
             TableName='SensorValues',

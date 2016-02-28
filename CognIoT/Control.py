@@ -6,14 +6,14 @@ For use with the CognIoT Sensors and uses the Android Application to read values
 
 Command Line Options
     - Start Capturing Readings (default action)     -s --Start
-    - Display Calibration                           -d --DisplayCal
+    - Display Calibration                           -c --DisplayCal
     - Set Calibration                               -e --SetCal
     - Display Operational Parameters                -o --DisplayPara
     - Set Operational Parameters                    -a --SetPara
     - Reset                                         -t --Reset
     - Add New Sensor                                -n --NewSensor
     - Read Device ID                                -d --DeviceID
-    - Read Sensor ID                                -o --SensorID
+    - Read Sensor ID                                -i --SensorID
 
 """
 
@@ -21,6 +21,9 @@ Command Line Options
 Progress So far
 Written the first cut for the capturing of readings, ready for some testing
 - ideally need to write some unit tests to do all this stuff, rather than rely on manual testing.
+
+
+BUG - Can't exit the threads!!!!!
 
 """
 
@@ -38,6 +41,7 @@ from datetime import datetime
 
 import time
 import argparse
+import sys
 
 DATAFILE_NAME = "datafile.txt"
 DATAFILE_LOCATION = "CognIoT"
@@ -113,7 +117,7 @@ class iCOG():
         
     def SetAcroymnData(self):
         """
-        This must be run after GetSensors
+        This must be run after GetSensor
         Sets the additional information about the sensor, based on the data file
         Loads the datafile into a 
             - Sensor Acroynm (self.sensoracroynm)
@@ -182,6 +186,9 @@ class ReadingThread(threading.Thread):
             - post it to AWS
     """
     def __init__(self, sensor):
+        threading.Thread.__init__(self)
+        self.running = threading.Condition()
+        self.running = True
         self.sensor = sensor
         return
     
@@ -189,19 +196,24 @@ class ReadingThread(threading.Thread):
         
         starttime = time.time()
         # If exitFlag is True, time to stop!
-        while exitFlag == False:
+        while self.running == True:
             #Is it time to read the sensor?
             if (starttime - time.time()) > self.sensor.readfrequency:
-                # Read the data
-                info = self.sensor.ReadData( add some parameters in here)
+                # Read the data (uuid, bustype, busnumber, deviceaddress)
+                info = self.sensor.ReadData(self.sensor.uuid, self.sensor.bustype, self.sensor.busnumber, self.sensor.deviceaddress)
                 
                 #Write the data from the sensor to the database
                 DataAccessor.WriteValues(dbconn, info, GenerateTimeStamp(), self.sensor.uuid, self.sensor.sensor, self.sensor.sensor_acroynm, self.sensor.sensor_description)
                 
                 # Reset the timer
                 starttime = time.time()
+                
+                print("Thread %s running" % self.sensor)
 
         return
+    
+    def stop(self):
+        self.running = False
 
 
 
@@ -262,10 +274,10 @@ def SetandGetArguments():
                     help="Add a new Sensor to this Raspberry Pi")
     parser.add_argument("-d", "--DeviceID", 
                     help="Display the Device ID for this Raspberry Pi")
-    parser.add_argument("-o", "--SensorID", 
+    parser.add_argument("-i", "--SensorID", 
                     help="Display the Sensor IDs being used")
     Cal_group = parser.add_mutually_exclusive_group()
-    Cal_group.add_argument("-d", "--DisplayCal", 
+    Cal_group.add_argument("-c", "--DisplayCal", 
                     help="Display the Calibration Data for the sensors")
     Cal_group.add_argument("-e", "--SetCal", 
                     help="Set new Calibration Data for the sensors")
@@ -287,50 +299,52 @@ def Start():
     dbconn = DataAccessor.DynamodbConnection()
 
     # Find out how many sensors are connected
-    status, sensor_count = iCOGUtils.GetSensorCount()
+    status, qty_sensors = iCOGUtils.GetSensorCount()
     if status == False:
         print("No sensors connected to the Rapsberry Pi")
         sys.exit()
+    
+    sensor = []
+    print("Qty Sensors: %d" % qty_sensors)        #Added for Debug
+    for c in range(0, qty_sensors):
+        #Setup the sensors for each class instance
+        sensor.append(iCOG())
+
 
     # for each sensor connected, initialise communications     
+    print("Connecting to Sensors")      # Added for Debug Purposes
     sensor_count = 0
-    qty_sensors = iCOGUtils.GetSensorCount()
-    if qty_sensors < 1:
-        print("No sensors detected")
-        sys.exit()
-        
-    while sensor_count < qty_sensors:
-        #Setup the sensors for each class instance
-        
-        # for the returned sensor, set all the data
-        sensor[sensor_count] = iCOG.GetSensor(sensor_count)
-        sensor[sensor_count].SetAcroymnData()
-        sensor[sensor_count].SetupSensor()
-        
-        sensor_count = sensor_count + 1
+    for sens in sensor:
+        sens.GetSensor(sensor_count)
+        sens.SetAcroymnData()
+        sens.SetupSensor()
+        sensor_count = sensor_count + 1        
 
     # For each sensor, read the values and write them to the AWS database
     # needs to use the read frequency to limit the number of reads.
     
-   threadID = 1
+    threadID = 1
 
+    print("Threading")      #Added for Debug purposes
+    threads = []
     # Create the new threads, using the run function within ReadingThread
     for tsensor in sensor:
         # Trying to pass in the individual sensor into the thread, no idea if it will work!!
-        thread = ReadingThread(threadID,tsensor)
+        thread = ReadingThread(tsensor)
         thread.start()
         threads.append(thread)
         threadID = threadID + 1
-        print("Added Thread %s as ID: %n", % (tsensor, threadID))       #Added for debug purposes
+        print("Added Thread %s as ID: %d" % (tsensor, threadID))       #Added for debug purposes
 
     # Wait for the user to exit via the keyboard.
     key = input("\nPress Any Key to Exit\n")
-    if Not(key ==""):
-        exitFlag = True
+    #if Not(key ==""):
+        
     
     # Wait for the threads to complete
     for t in threads:
         print("Waiting for the threads to complete")        #Added for Debug purposes
+        t.stop
         t.join()
         
     print("Exiting Main Thread")        #added for debug purposes
@@ -427,9 +441,7 @@ def main():
     
     #TODO: print out the values being used, especially if they are the defaults.
     
-    #TODO: sort out the global variables, including how many sensors are connected.
-    #TODO: prpbably needs something to bomb out if there is a failure
-    SetGlobals()
+    #TODO: probably needs something to bomb out if there is a failure
 
     if args.Start:
         Start()              #TODO: Complete routine
