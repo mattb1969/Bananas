@@ -14,6 +14,7 @@ Command Line Options
     - Add New Sensor                                -n --NewSensor
     - Read Device ID                                -d --DeviceID
     - Read Sensor ID                                -i --SensorID
+    - Set Logging Level                             -l --Logging
 
 """
 
@@ -23,9 +24,15 @@ Written the first cut for the capturing of readings, ready for some testing
 - ideally need to write some unit tests to do all this stuff, rather than rely on manual testing.
 
 
-BUG - Can't exit the threads!!!!!
+BUG - Can't exit threads !!!
+    I think this is now fixed but I can't debug properly.
+BUG - Can't work with multiple sensors!!!!!
+BUG - logging is creating the file, but it is not logging from the sub modules.
+    Could be related to the modules being loaded before logging is set up
+    see http://victorlin.me/posts/2012/08/26/good-logging-practice-in-python
 
 """
+
 
 
 #from . import DataAccessor
@@ -42,6 +49,8 @@ from datetime import datetime
 import time
 import argparse
 import sys
+import logging
+
 
 DATAFILE_NAME = "datafile.txt"
 DATAFILE_LOCATION = "CognIoT"
@@ -164,6 +173,7 @@ class iCOG():
             self.setuphardware = iCOGSensorComms.SetupHardware(self.uuid, self.bustype, self.busnumber, self.sensoraddress)
         except:
             print("Unable to set up comms")
+            logging.debug("Unable to set up comms")
             sys.exit()
             
         return self.setuphardware
@@ -185,18 +195,26 @@ class ReadingThread(threading.Thread):
             - read the value
             - post it to AWS
     """
+    
+    #This is being seen as globla to the whole program, should be class level only.
+    #global running
+    #running = False
+    
     def __init__(self, sensor):
         threading.Thread.__init__(self)
-        self.running = threading.Condition()
+        #self.running = threading.Condition() taken out to check needed
+        # running is available to all instances of the class and is used to stop the threads.
         self.running = True
         self.sensor = sensor
+        self.event = threading.Event()
         return
     
     def run(self):
         
         starttime = time.time()
         # If exitFlag is True, time to stop!
-        while self.running == True:
+#        while (self.running == True):
+        while self.event.is_set():
             #Is it time to read the sensor?
             if (starttime - time.time()) > self.sensor.readfrequency:
                 # Read the data (uuid, bustype, busnumber, deviceaddress)
@@ -213,7 +231,11 @@ class ReadingThread(threading.Thread):
         return
     
     def stop(self):
-        self.running = False
+        # When called, this sets the running flag to false to stop all instances of the class.
+        running = False
+        print ("Stopping threads!")     #added for debug purposes.
+
+        
 
 
 
@@ -252,7 +274,36 @@ def GenerateTimeStamp():
     #print ('Timestamp: %s' % now[:23]) #Debug
     return now[:23]
 
+def SetupLogging():
+    """
+    Setup the logging defaults
+    Using the logger function to span multiple files.
+    """
+    print("Current logging level is \n\n   DEBUG!!!!\n\n")
+    
+    # Create a logger with the name of the function
+    log = logging.getLogger(__name__)
+    log.setLevel(logging.DEBUG)      #Set to the highest level, actual logging level set for each handler.
+    
+    # Create a file handler to write log info to the file
+    fh = logging.FileHandler('CognIoT.log', mode='w')
+    fh.setLevel(logging.DEBUG)      #This is the one that needs to be driven by user input
+    
+    # Create a console handler with a higher log level to output logging info of ERROR or above to the screen (default output)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.ERROR)
+    
+    # Create a formatter to make the actual logging better readable
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+    # Add the handlers to the logger
+    log.addHandler(fh)
+    log.addHandler(ch)
 
+    log.info("Logging Started")
+    log.error("Error occurred")
+    return
 
 ################################################################################
 # 
@@ -276,6 +327,8 @@ def SetandGetArguments():
                     help="Display the Device ID for this Raspberry Pi")
     parser.add_argument("-i", "--SensorID", 
                     help="Display the Sensor IDs being used")
+    parser.add_argument("-l", "--Logging", 
+                    help="Set the logging level to be used (Default is OFF)")
     Cal_group = parser.add_mutually_exclusive_group()
     Cal_group.add_argument("-c", "--DisplayCal", 
                     help="Display the Calibration Data for the sensors")
@@ -312,7 +365,7 @@ def Start():
 
 
     # for each sensor connected, initialise communications     
-    print("Connecting to Sensors")      # Added for Debug Purposes
+    print("Connecting to Sensors %s" % sensor)      # Added for Debug Purposes
     sensor_count = 0
     for sens in sensor:
         sens.GetSensor(sensor_count)
@@ -336,15 +389,17 @@ def Start():
         threadID = threadID + 1
         print("Added Thread %s as ID: %d" % (tsensor, threadID))       #Added for debug purposes
 
+    ###print ("status: %s" % running)
     # Wait for the user to exit via the keyboard.
-    key = input("\nPress Any Key to Exit\n")
+    key = input("\nPress Enter to Exit\n")
     #if Not(key ==""):
         
     
     # Wait for the threads to complete
     for t in threads:
         print("Waiting for the threads to complete")        #Added for Debug purposes
-        t.stop
+        t.event
+        #t.stop
         t.join()
         
     print("Exiting Main Thread")        #added for debug purposes
@@ -417,8 +472,15 @@ def SetParameters():
     """
     print ("Not yet Implemented")
     return
- 
- 
+
+def SetLogging():
+    """
+    Perform the necessary actions to achange the logging level being used
+
+    The default logging level is zero
+    """
+    print ("Not yet Implemented")
+    return
  
 ################################################################################
 # 
@@ -431,6 +493,9 @@ def main():
     This routine is the main called routine and therefore determines what action to take based on the arguments given.
     
     """
+    
+    SetupLogging()
+    
     args = SetandGetArguments()
     
     # First print a 'splash screen'
@@ -461,6 +526,8 @@ def main():
         DisplayParameters()  #TODO: Not started
     elif args.SetPara:
         SetParameters()      #TODO: Not started
+    elif args.Logging:
+        SetLogging()         #TODO: Not started
     else:
         Start()
 
@@ -470,6 +537,7 @@ def main():
     
 # Only call the Start routine if the module is being called directly, else it is handled by the calling program
 if __name__ == "__main__":
+
     main()
 
 

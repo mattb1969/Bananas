@@ -8,6 +8,9 @@ Contains the required AWS Connection Utilities
 
 import boto3
 import sys
+import logging
+
+
 
 def DynamodbConnection():
     """
@@ -15,7 +18,9 @@ def DynamodbConnection():
     set Endpoint is used to make a local connection rather than the remote connection
     returns T
     """
+    log = logging.getLogger(__name__)
     #TODO: Add in validation that a conection has been made.
+    log.info("Setting Up db connection")
     try:
         db = boto3.client('dynamodb', 
             aws_access_key_id='AKIAI7HW3Y2EPZ5GPBTQ',

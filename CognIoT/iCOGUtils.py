@@ -4,6 +4,9 @@
 This is a stub program for the purposes of testing the main program
 
 """
+import logging
+
+
 
 #Bus types
 I2C = "I2C"
@@ -19,12 +22,31 @@ def GetSensor(sensor_id):
     
     UUID, bustype, busnumber, sensoraddress, sensor, manufacturer
     """
+    log = logging.getLogger(__name__)
+    print("Sensor ID Requested %s" % sensor_id)
+    log.info("Sensor ID")
     
     if sensor_id == 0:
         bustype = I2C
         busnumber = 1
-        sensoraddress = "Ox52"
+        sensoraddress = "Ox50"
         uuid= 0x12345678
+        sensor = 12
+        manufacturer = 1
+        status = True
+    if sensor_id == 1:
+        bustype = I2C
+        busnumber = 1
+        sensoraddress = "Ox51"
+        uuid= 0x00000001
+        sensor = 12
+        manufacturer = 1
+        status = True
+    if sensor_id == 2:
+        bustype = I2C
+        busnumber = 1
+        sensoraddress = "Ox52"
+        uuid= 0x00000002
         sensor = 12
         manufacturer = 1
         status = True
@@ -89,4 +111,4 @@ def GetSensorCount():
     This just returns a status and fixed value
     """
     
-    return True, 1
+    return True, 3
