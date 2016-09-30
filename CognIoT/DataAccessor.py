@@ -4,6 +4,8 @@ Contains the required AWS Connection Utilities
 #TODO: If there is no db connection, will capture the data in local file ready for transmit
     This will require some space management so that we don't overfill the card.
     If it was really clever, it would create a separate thread to handle writing of the data
+
+BUG - Logging is not working
 """
 
 import boto3

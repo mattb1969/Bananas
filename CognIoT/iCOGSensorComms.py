@@ -3,6 +3,8 @@
 
 This is a stub program for the purposes of testing the main program
 
+BUG - Logging is not working
+
 """
 
 import logging
@@ -18,7 +20,7 @@ def SetupHardware(uuid, bustype, busnumber, sensoraddress):
     
     """
     log = logging.getLogger(__name__)
-    #TODO: needs to return an istance of iteself
+    #TODO: needs to return an instance of iteself
     log.info("Setting Up Hardware")
     
     return True

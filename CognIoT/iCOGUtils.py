@@ -3,6 +3,9 @@
 
 This is a stub program for the purposes of testing the main program
 
+
+BUG - Logging is not working, but print statements are!
+
 """
 import logging
 
@@ -22,11 +25,14 @@ def GetSensor(sensor_id):
     
     UUID, bustype, busnumber, sensoraddress, sensor, manufacturer
     """
+    
+    #BUG: Logging is not working in this file.
     log = logging.getLogger(__name__)
-    print("Sensor ID Requested %s" % sensor_id)
+    print("Sensor ID Requested %f" % sensor_id)
     log.info("Sensor ID")
     
     if sensor_id == 0:
+        print("Sensor ID 0 chosen")
         bustype = I2C
         busnumber = 1
         sensoraddress = "Ox50"
@@ -34,7 +40,8 @@ def GetSensor(sensor_id):
         sensor = 12
         manufacturer = 1
         status = True
-    if sensor_id == 1:
+    elif sensor_id == 1:
+        print("Sensor ID 1 chosen")
         bustype = I2C
         busnumber = 1
         sensoraddress = "Ox51"
@@ -42,7 +49,8 @@ def GetSensor(sensor_id):
         sensor = 12
         manufacturer = 1
         status = True
-    if sensor_id == 2:
+    elif sensor_id == 2:
+        print("Sensor ID 2 chosen")
         bustype = I2C
         busnumber = 1
         sensoraddress = "Ox52"
@@ -51,6 +59,7 @@ def GetSensor(sensor_id):
         manufacturer = 1
         status = True
     else:
+        print("Sensor ID (unknown) chosen")
         bustype = ""
         busnumber = 0
         sensoraddress = ""
@@ -111,4 +120,4 @@ def GetSensorCount():
     This just returns a status and fixed value
     """
     
-    return True, 3
+    return True, 1

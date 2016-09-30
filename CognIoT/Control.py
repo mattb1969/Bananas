@@ -24,20 +24,24 @@ Written the first cut for the capturing of readings, ready for some testing
 - ideally need to write some unit tests to do all this stuff, rather than rely on manual testing.
 
 
-BUG - Can't exit threads !!!
-    I think this is now fixed but I can't debug properly.
-BUG - Can't work with multiple sensors!!!!!
 BUG - logging is creating the file, but it is not logging from the sub modules.
     Could be related to the modules being loaded before logging is set up
     see http://victorlin.me/posts/2012/08/26/good-logging-practice-in-python
+BUG - When it is trying to access the datafile, it is using relative paths and therefore
+    has to be run from only the parent directory
+BUG - After loading the datafile, it is unable to find a match in the datafile
+BUG - Print statements are not working, in sub files - Eg. IN DataAccessor it should print the values 
+    it is trying to write to the database, it doesn't.
+BUG - In the threading it is writing values, but no longer exiting the loops
+
+
+PLus other BUGs in the file below!!!
+
+TODO: Modify the software to always put the log file in a fixed 'standard' directory and to make it time / size bound
+TODO: Modify the threading to use the thread timer function rather than doing it myself.
 
 """
 
-
-
-#from . import DataAccessor
-#from . import iCOGUtils
-#from . import iCOGSensorComms
 
 import DataAccessor
 import iCOGUtils
@@ -78,7 +82,10 @@ class iCOG():
         """
         #TODO: Not yet implemented
         #readfrequency is the time between reading of values
-        self.readfrequency = 30
+
+#BUG - This should be set higher, but is changed for testing
+        self.readfrequency = 3
+        log.debug("iCOG initialised, read frequency set to %s" % self.readfrequency)
         return
     
     def ReturnUUID(self):
@@ -102,7 +109,7 @@ class iCOG():
     def ReturnReadFrequency(self):
         return self.readfrequency
 
-    def GetSensor(self, sensor_id):
+    def GetSensorDataFromEEPROM(self, sensor_id):
         """
         Interface with the EEPROM and get the sensor details
         Sets
@@ -110,6 +117,7 @@ class iCOG():
         for each sensor as a unique class object
         """
         status, reply = iCOGUtils.GetSensor(sensor_id)
+        log.debug("Got sensor status and data from iCOGUtils: %s : %s" % (status, reply))
         if status:
             self.uuid = reply[0]
             self.bustype = reply[1]
@@ -117,16 +125,18 @@ class iCOG():
             self.sensoraddress = reply[3]
             self.sensor = reply[4]
             self.manufacturer = reply[5]
+            log.info("Loaded Sensor information")
         else:
             #TODO: Implement something here
-            print ("unable to read EEPROM")
+            log.critical("Unable to Read EEPROM, program halted")
+            #print ("unable to read EEPROM") removed as now log statement
             sys.exit()
         
         return 
         
     def SetAcroymnData(self):
         """
-        This must be run after GetSensor
+        This must be run after GetSensorDataFromEEPROM
         Sets the additional information about the sensor, based on the data file
         Loads the datafile into a 
             - Sensor Acroynm (self.sensoracroynm)
@@ -134,32 +144,46 @@ class iCOG():
             - Read Frequency (self.readfrequency)
         
         #TODO: This should only be run if the customer hasn't set values first.
+        #TODO: Reading fo the datafile should only be done once and not for each sensor
         """
         #TODO: Validate the error checking around this
         self.datafile = []
+        log.info("Reading the datafile for sensor information")
         try:
+            log.debug("DataFile in location:%s" % DATAFILE_LOCATION + '/' + DATAFILE_NAME)
             data = open(DATAFILE_LOCATION + '/' + DATAFILE_NAME, mode='rt')
             lines = data.readlines()
             data.close()
+            log.debug("datafile loaded %s" % lines)
         except:
-            print("Failed to Open datafile, please contact support")
+            log.critical("Failed to Open datafile, please contact support", exc_info=True)
             sys.exit()
-            
+
+        log.info("Decoding the datafile, line by line")
         for f in lines:
             # Read a line of data in and strip any unwanted \n type characters
             dataline = f.strip()
             # split the data by a comma into a list.
             row_data = dataline.split(",")
             self.datafile.append(row_data)
-        
+            log.debug("Row of extracted data %s" % row_data)
+            
         #Now loop through the data string and extract the acroynm and description
+        log.info("Loop through datafile and set sensor information")
         # Uses the self.sensor & self.manufacturer
         for element in self.datafile:
             if element[3] == self.sensor and element[4] == self.manufacturer:
+                log.debug("Match found for Sensor and Description")
                 self.sensoracroynm = element[0]
                 self.sensordescription = element[1]
-
-        #TODO: Add something if it is not found!
+                
+            else:
+                log.warning("No match found for Sensor and Description, using defaults")
+                self.sensoracroynm = "UNK"
+                self.sensordescription = "Sensor Description Unknown, contact support"
+                
+        log.debug("Sensor: %s and Manufacturer:%s match found, loading acroynm:%s and desc:%s" 
+            %(self.sensor, self.manufacturer, self.sensoracroynm, self.sensordescription))        
         
         return
 
@@ -169,11 +193,12 @@ class iCOG():
         
         uuid, bustype, busnumber, sensoraddress
         """
+        log.info("Setting up hardware")
         try:
             self.setuphardware = iCOGSensorComms.SetupHardware(self.uuid, self.bustype, self.busnumber, self.sensoraddress)
+            log.debug("Setup comms with the sensor: %s" % self.setuphardware)
         except:
-            print("Unable to set up comms")
-            logging.debug("Unable to set up comms")
+            logging.critical("Unable to set up comms, contact support")
             sys.exit()
             
         return self.setuphardware
@@ -196,45 +221,48 @@ class ReadingThread(threading.Thread):
             - post it to AWS
     """
     
-    #This is being seen as globla to the whole program, should be class level only.
-    #global running
-    #running = False
-    
-    def __init__(self, sensor):
+    def __init__(self, sensor, dbconnection):
         threading.Thread.__init__(self)
-        #self.running = threading.Condition() taken out to check needed
-        # running is available to all instances of the class and is used to stop the threads.
-        self.running = True
+        self.log = logging.getLogger(__name__)
         self.sensor = sensor
+        # self.event contains the 'event' received to run / stop the threads
         self.event = threading.Event()
+        self.threadname = threading.currentThread().getName()
+        self.log.info("Thread:%s for Sensor:%s initialised" % (self.threadname, self.sensor.sensoracroynm))
+        self.conn = dbconnection
         return
     
     def run(self):
+        self.log.info("Thread:%s for Sensor:%s running" % (self.threadname, self.sensor.sensoracroynm))
         
-        starttime = time.time()
+        self.starttime = time.time()
         # If exitFlag is True, time to stop!
-#        while (self.running == True):
-        while self.event.is_set():
+        self.log.debug("Thread Sensor Read Frequency:%f" % self.sensor.readfrequency)
+        self.log.info("Thread Event setting:%s" % self.event.is_set())
+        while not self.event.is_set():
             #Is it time to read the sensor?
-            if (starttime - time.time()) > self.sensor.readfrequency:
+            if (time.time()- self.starttime) > self.sensor.readfrequency:
+                self.log.debug("Thread Time to read values for thread:%s" % self.threadname)
                 # Read the data (uuid, bustype, busnumber, deviceaddress)
-                info = self.sensor.ReadData(self.sensor.uuid, self.sensor.bustype, self.sensor.busnumber, self.sensor.deviceaddress)
-                
-                #Write the data from the sensor to the database
-                DataAccessor.WriteValues(dbconn, info, GenerateTimeStamp(), self.sensor.uuid, self.sensor.sensor, self.sensor.sensor_acroynm, self.sensor.sensor_description)
-                
-                # Reset the timer
-                starttime = time.time()
-                
-                print("Thread %s running" % self.sensor)
+                info = iCOGSensorComms.ReadData(self.sensor.uuid, self.sensor.bustype, self.sensor.busnumber, self.sensor.sensoraddress)
+                self.log.debug("Thread %s: Read data from Sensor: %s" %( self.threadname, info))
 
+                #Write the data from the sensor to the database
+                DataAccessor.WriteValues(self.conn, info, GenerateTimeStamp(), self.sensor.uuid, self.sensor.sensor, self.sensor.sensoracroynm, self.sensor.sensordescription)
+                self.log.debug("Thread %s has written data to AWS" % self.threadname)
+
+                # Reset the timer
+                self.starttime = time.time()
+            #self.log.debug("Time elapsed during loop check:%f" %(starttime - time.time()))
+        self.log.info("Thread:%s for Sensor:%s finishing" % (self.threadname, self.sensor.sensoracroynm))
         return
     
     def stop(self):
         # When called, this sets the running flag to false to stop all instances of the class.
-        running = False
-        print ("Stopping threads!")     #added for debug purposes.
-
+        
+        self.log.info("Stop method called")
+        self.event.set()
+        return
         
 
 
@@ -254,6 +282,7 @@ def GetSerialNumber():
     returns the Serial Number or '0000000000000000'
     """
     try:
+        log.debug("Opening proc/cpuinfo for CPU serial Number")
         f = open('/proc/cpuinfo')
         for line in f:
             if line[0:6] == "Serial":
@@ -261,7 +290,9 @@ def GetSerialNumber():
         f.close
     except:
         cpuserial = '0000000000000000'
-    print ("CPU Serial Number : %s" % cpuserial)    #Added for Debug Purposes
+        log.error("Failed to open proc / cpuinfo, set to default")
+
+    log.info("CPU Serial Number : %s" % cpuserial)
     return int(cpuserial, 16)
 
 def GenerateTimeStamp():
@@ -271,7 +302,7 @@ def GenerateTimeStamp():
     datetime returns a object so it needs to be converted to a string and then redeuced to 23 characters to meet format
     """
     now = str(datetime.now())
-    #print ('Timestamp: %s' % now[:23]) #Debug
+    log.debug("Generated a timestamp %s" % now[:23])
     return now[:23]
 
 def SetupLogging():
@@ -282,6 +313,7 @@ def SetupLogging():
     print("Current logging level is \n\n   DEBUG!!!!\n\n")
     
     # Create a logger with the name of the function
+    global log
     log = logging.getLogger(__name__)
     log.setLevel(logging.DEBUG)      #Set to the highest level, actual logging level set for each handler.
     
@@ -301,8 +333,10 @@ def SetupLogging():
     log.addHandler(fh)
     log.addHandler(ch)
 
-    log.info("Logging Started")
-    log.error("Error occurred")
+    #BUG: This is loading the wrong values into the log file
+    log.info("File Logging Started, current level is %s" % log.getEffectiveLevel)
+    log.info("Screen Logging Started, current level is %s" % log.getEffectiveLevel)
+    
     return
 
 ################################################################################
@@ -316,6 +350,7 @@ def SetandGetArguments():
     Define the arguments available for the program and return any arguments set.
 
     """
+    log.info("Setting and Getting Parser arguments")
     parser = argparse.ArgumentParser(description="Capture and send data for CognIoT sensors")
     parser.add_argument("-S", "--Start",
                     help="Start capturing data from the configured sensors and send them to the database")
@@ -340,6 +375,7 @@ def SetandGetArguments():
     Para_group.add_argument("-a", "--SetPara", 
                     help="Set the Operational parameters, e.g. Read Frequency")
 
+    log.debug("Parser values captured: %s" % parser.parse_args())
     return parser.parse_args()
 
 def Start():
@@ -350,59 +386,61 @@ def Start():
 
     # setup the connection to the AWS database
     dbconn = DataAccessor.DynamodbConnection()
+    log.info("Connected to AWS database")
+    log.debug("Database connection:%s" % dbconn)
 
     # Find out how many sensors are connected
     status, qty_sensors = iCOGUtils.GetSensorCount()
+    log.info("Status: %s and Number of Sensors Connected:%s" % (status, qty_sensors))
     if status == False:
-        print("No sensors connected to the Rapsberry Pi")
+        log.critical("No sensors connected to the Rapsberry Pi, program halted")
+        print("No sensors connected to the Rapsberry Pi, program halted")
         sys.exit()
     
     sensor = []
-    print("Qty Sensors: %d" % qty_sensors)        #Added for Debug
+    log.debug("Qty Sensors: %d" % qty_sensors)
     for c in range(0, qty_sensors):
         #Setup the sensors for each class instance
         sensor.append(iCOG())
 
-
+    log.debug("List of Sensors: %s" % sensor)
     # for each sensor connected, initialise communications     
-    print("Connecting to Sensors %s" % sensor)      # Added for Debug Purposes
     sensor_count = 0
     for sens in sensor:
-        sens.GetSensor(sensor_count)
+        sens.GetSensorDataFromEEPROM(sensor_count)
         sens.SetAcroymnData()
         sens.SetupSensor()
         sensor_count = sensor_count + 1        
 
+    log.info("Starting Threading for reading of values")
     # For each sensor, read the values and write them to the AWS database
     # needs to use the read frequency to limit the number of reads.
     
     threadID = 1
 
-    print("Threading")      #Added for Debug purposes
     threads = []
     # Create the new threads, using the run function within ReadingThread
     for tsensor in sensor:
         # Trying to pass in the individual sensor into the thread, no idea if it will work!!
-        thread = ReadingThread(tsensor)
+        thread = ReadingThread(tsensor,dbconn)
         thread.start()
         threads.append(thread)
         threadID = threadID + 1
-        print("Added Thread %s as ID: %d" % (tsensor, threadID))       #Added for debug purposes
+        log.debug("Added Thread %s as ID: %d" % (tsensor, threadID))
 
-    ###print ("status: %s" % running)
+    log.info("All the Threads are Running")
     # Wait for the user to exit via the keyboard.
     key = input("\nPress Enter to Exit\n")
-    #if Not(key ==""):
         
     
     # Wait for the threads to complete
     for t in threads:
-        print("Waiting for the threads to complete")        #Added for Debug purposes
-        t.event
-        #t.stop
+        log.debug("Waiting for the thread:%s to complete" %t)
+        t.event.set()
+
         t.join()
         
-    print("Exiting Main Thread")        #added for debug purposes
+    log.debug("Exiting Main Thread")
     
     
     return
